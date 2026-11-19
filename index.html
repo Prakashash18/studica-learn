@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1720">
+<title>ROS 2 on the Studica Robot: Step by Step</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0f1720; --panel:#17222e; --panel2:#1e2c3a; --line:#2b3d4f;
+  --text:#e8eef4; --muted:#93a4b5; --accent:#3ddc97; --accent2:#4fb3ff;
+  --warn:#ffb547; --bad:#ff6b6b; --pink:#ff7ad9; --yellow:#ffe066;
+  --r:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font-family:Nunito,system-ui,sans-serif;font-size:17px;line-height:1.45;overscroll-behavior:none}
+body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+code,pre,.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+code{background:var(--panel2);padding:1px 6px;border-radius:6px;font-size:.88em;color:var(--yellow);overflow-wrap:anywhere}
+pre code{overflow-wrap:normal}
+
+/* ---------- top bar ---------- */
+header{padding:calc(10px + env(safe-area-inset-top)) 14px 8px;display:flex;align-items:center;gap:10px}
+.chip{background:var(--panel2);border:1px solid var(--line);padding:4px 10px;border-radius:99px;font-size:.78rem;font-weight:800;white-space:nowrap}
+#modchip{color:var(--accent)}
+#count{margin-left:auto;color:var(--muted);font-size:.8rem;font-weight:700}
+#menuBtn{background:none;border:1px solid var(--line);color:var(--text);border-radius:10px;width:38px;height:34px;font-size:1.1rem;cursor:pointer}
+.bar{height:5px;background:var(--panel2);margin:0 14px;border-radius:9px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .4s ease}
+
+/* ---------- slides ---------- */
+main{flex:1;position:relative;overflow:hidden}
+.slide{position:absolute;inset:0;overflow-y:auto;padding:18px 18px 30px;max-width:640px;margin:0 auto;
+  opacity:0;transform:translateX(40px);transition:opacity .35s ease, transform .35s ease;pointer-events:none}
+.slide.on{opacity:1;transform:none;pointer-events:auto}
+h1{font-size:1.55rem;line-height:1.2;margin:4px 0 12px}
+h2{font-size:1.1rem;margin:16px 0 8px;color:var(--accent2)}
+p{margin:0 0 12px}
+.big{font-size:3.2rem;text-align:center;margin:8px 0}
+.muted{color:var(--muted)}
+.card{overflow-wrap:anywhere;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:12px 0}
+.tip{border-left:4px solid var(--accent2);background:rgba(79,179,255,.08);padding:10px 12px;border-radius:10px;margin:12px 0;font-size:.95rem}
+.warn{border-left-color:var(--warn);background:rgba(255,181,71,.09)}
+.good{border-left-color:var(--accent);background:rgba(61,220,151,.08)}
+
+/* stagger-in animation for anything with .pop */
+.on .pop{animation:popin .5s both}
+.on .pop:nth-child(2){animation-delay:.15s}.on .pop:nth-child(3){animation-delay:.3s}
+.on .pop:nth-child(4){animation-delay:.45s}.on .pop:nth-child(5){animation-delay:.6s}
+.on .pop:nth-child(6){animation-delay:.75s}.on .pop:nth-child(7){animation-delay:.9s}
+@keyframes popin{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+
+/* ---------- terminal ---------- */
+.term{background:#05090d;border:1px solid #24323f;border-radius:12px;overflow:hidden;margin:12px 0}
+.term .tb{display:flex;gap:6px;align-items:center;padding:8px 10px;background:#121b24}
+.term .tb i{width:10px;height:10px;border-radius:50%;background:#ff5f57}.term .tb i:nth-child(2){background:#febc2e}.term .tb i:nth-child(3){background:#28c840}
+.term .tb button{margin-left:auto}
+.term pre{margin:0;padding:12px;min-height:70px;font-size:.82rem;white-space:pre-wrap;word-break:break-word;color:#cfe3f3}
+.term .pr{color:var(--accent)} .term .pth{color:var(--accent2)} .term .out{color:#cbd5df} .term .err{color:var(--bad)}
+.cur{display:inline-block;width:8px;height:1em;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* ---------- buttons ---------- */
+.btn{background:var(--accent);color:#04120b;border:0;border-radius:12px;padding:10px 16px;font:800 .95rem Nunito,sans-serif;cursor:pointer}
+.btn.sm{padding:5px 11px;font-size:.78rem;border-radius:8px}
+.btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.35}
+
+/* ---------- quiz ---------- */
+.quiz{background:var(--panel);border:2px solid var(--accent2);border-radius:var(--r);padding:14px;margin:12px 0}
+.quiz .q{font-weight:800;margin-bottom:10px}
+.quiz .qtag{display:inline-block;background:var(--accent2);color:#04121f;font-size:.7rem;font-weight:800;padding:2px 8px;border-radius:99px;margin-bottom:8px}
+.opt{display:block;width:100%;text-align:left;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+  border-radius:12px;padding:11px 12px;margin:8px 0;font:600 .95rem Nunito,sans-serif;cursor:pointer;transition:.2s}
+.opt code{white-space:pre-wrap}
+.opt.right{border-color:var(--accent);background:rgba(61,220,151,.15);animation:pulse .5s}
+.opt.wrong{border-color:var(--bad);background:rgba(255,107,107,.12);animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+@keyframes pulse{50%{transform:scale(1.03)}}
+.fb{display:none;margin-top:8px;padding:10px;border-radius:10px;font-size:.93rem}
+.fb.show{display:block;animation:popin .35s both}
+.fb.ok{background:rgba(61,220,151,.12)} .fb.no{background:rgba(255,107,107,.1)}
+
+/* ---------- node / topic flow ---------- */
+.flow{display:flex;align-items:center;gap:0;margin:16px 0}
+.node{flex:0 1 auto;background:var(--panel2);border:2px solid var(--accent2);border-radius:14px;padding:8px 6px;text-align:center;font-weight:800;font-size:.8rem;min-width:62px;max-width:34%;overflow-wrap:anywhere}
+.node small{display:block;font-weight:600;color:var(--muted);font-size:.7rem}
+.node.me{border-color:var(--accent)}
+.node.topic{border-style:dashed;border-color:var(--yellow);color:var(--yellow);font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.7rem;min-width:0}
+.track{flex:1;height:4px;background:var(--line);position:relative;min-width:24px}
+.track .dot{position:absolute;top:-6px;left:0;width:16px;height:16px;border-radius:50%;background:var(--yellow);box-shadow:0 0 12px var(--yellow);animation:travel 1.6s linear infinite}
+.track .dot.d2{animation-delay:.8s}
+@keyframes travel{from{left:0;opacity:0}15%{opacity:1}85%{opacity:1}to{left:calc(100% - 16px);opacity:0}}
+.fan{display:flex;flex-direction:column;gap:12px;flex:1}
+.fan .row{display:flex;align-items:center}
+
+/* ---------- folder tree ---------- */
+.tree{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;line-height:1.9}
+.tree div{white-space:nowrap}
+.tree .new{color:var(--accent);animation:popin .6s both}
+.tree .hl{background:rgba(61,220,151,.15);border-radius:6px;padding:0 4px}
+.tree .bad{color:var(--bad)}
+.tree .note{color:var(--muted);font-family:Nunito,system-ui,sans-serif;font-size:.8rem}
+.hidden{display:none}
+
+/* ---------- chips (command breakdown) ---------- */
+.cmd{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.cmd button{max-width:100%;overflow-wrap:anywhere;text-align:left;font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.8rem;background:var(--panel2);color:var(--yellow);border:1px solid var(--line);border-radius:8px;padding:6px 8px;cursor:pointer}
+.cmd button.sel{border-color:var(--accent);background:rgba(61,220,151,.15);color:var(--text)}
+.explain{min-height:64px}
+
+/* ---------- code ---------- */
+pre.code{background:#0a1118;border:1px solid var(--line);border-radius:12px;padding:12px;font-size:.78rem;overflow-x:auto;line-height:1.6;margin:10px 0}
+pre.code .ln{display:block;border-radius:4px;padding:0 4px;transition:background .3s}
+pre.code .ln.lit{background:rgba(255,224,102,.18)}
+.kw{color:#ff7ad9}.st{color:#3ddc97}.cm{color:#6c8296}.fn{color:#4fb3ff}.nu{color:#ffb547}
+
+/* ---------- layers ---------- */
+.stack{display:flex;flex-direction:column-reverse;gap:8px;margin:12px 0}
+.layer{border-radius:12px;padding:10px 12px;font-weight:800;display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:.9rem}
+.layer small{font-weight:600;font-size:.72rem;opacity:.85;text-align:right}
+.on .layer{animation:rise .5s both}
+.on .layer:nth-child(1){animation-delay:.1s}.on .layer:nth-child(2){animation-delay:.4s}.on .layer:nth-child(3){animation-delay:.7s}.on .layer:nth-child(4){animation-delay:1s}.on .layer:nth-child(5){animation-delay:1.3s}
+@keyframes rise{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+
+/* ---------- simulator ---------- */
+.sim{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.sim input[type=range]{width:100%;accent-color:var(--accent);height:28px}
+.simrow{display:flex;align-items:center;justify-content:space-around;margin:10px 0;gap:10px}
+.hand{font-size:2.2rem;transition:transform .2s}
+.wheel{width:70px;height:70px;border-radius:50%;border:6px dashed var(--accent);animation:spin .6s linear infinite}
+.wheel.stop{animation-play-state:paused;border-color:var(--bad)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.reading{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:1.1rem;font-weight:700;text-align:center}
+.yaml-l{font-family:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;font-size:.8rem}
+
+/* ---------- stream ---------- */
+.stream{height:150px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.stream div{animation:popin .3s both}
+
+/* ---------- footer nav ---------- */
+footer{display:flex;gap:10px;align-items:center;padding:10px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
+footer .btn{flex:1;padding:13px}
+#hint{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:.75rem;color:var(--muted);pointer-events:none;transition:opacity .5s}
+.locked{opacity:.45}
+
+/* ---------- menu ---------- */
+#menu{position:fixed;inset:0;background:rgba(5,9,13,.92);z-index:20;display:none;padding:calc(20px + env(safe-area-inset-top)) 20px 20px;overflow:auto}
+#menu.open{display:block;animation:popin .25s both}
+#menu button.m{display:flex;width:100%;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px;margin:8px 0;font:700 1rem Nunito,sans-serif;text-align:left;cursor:pointer}
+#menu button.m span{font-size:1.4rem}
+.confetti{position:fixed;top:-10px;width:9px;height:14px;z-index:30;animation:fall 2.6s linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg)}}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+td,th{border-bottom:1px solid var(--line);padding:7px 4px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+th{color:var(--muted);font-size:.75rem}
+.check{display:flex;gap:10px;align-items:flex-start;margin:10px 0}
+.check input{width:22px;height:22px;accent-color:var(--accent);flex:0 0 auto;margin-top:2px}
+.part{padding:1px 4px;border-radius:5px}
+.p1{background:rgba(79,179,255,.25)}.p2{background:rgba(61,220,151,.25)}.p3{background:rgba(255,122,217,.25)}
+.robot{font-size:4rem;text-align:center;animation:bob 2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-8px)}}
+input.lbl{width:100%;background:#05090d;border:1px solid var(--line);color:var(--yellow);font:1rem "JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;padding:10px;border-radius:10px}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<header>
+  <span class="chip" id="modchip">Start</span>
+  <span id="count">1 / 1</span>
+  <button id="menuBtn" aria-label="Open lesson menu">☰</button>
+</header>
+<div class="bar"><i id="prog"></i></div>
+<main id="stage"><div id="hint">swipe ← → or use the buttons</div></main>
+<footer>
+  <button class="btn ghost" id="prev">← Back</button>
+  <button class="btn" id="next">Next →</button>
+</footer>
+<div id="menu"></div>
+
+<script>
+/* =========================================================
+   Helpers that build the little interactive pieces
+   ========================================================= */
+const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const attr = s => esc(s).replace(/"/g,'&quot;');
+const TERMS = {};             // terminal scripts, played when the slide opens
+let tid = 0;
+/* lines: [{c:'command'} | {o:'output'} | {e:'error output'} | {p:'path'} ] */
+function term(lines, path='~'){
+  const id = 't' + (tid++);
+  TERMS[id] = {lines, path};
+  return `<div class="term" data-tid="${id}"><div class="tb"><i></i><i></i><i></i>
+    <button class="btn sm ghost" data-replay="${id}">▶ Run again</button></div><pre></pre></div>`;
+}
+const QUIZ = {};              // quizId -> correct index
+let qid = 0;
+function quiz(q, opts, correct, why, hintWrong){
+  const id = 'q' + (qid++);
+  QUIZ[id] = {correct, why, hintWrong};
+  return `<div class="quiz" data-qid="${id}"><span class="qtag">QUICK CHECK</span>
+    <div class="q">${q}</div>
+    ${opts.map((o,i)=>`<button class="opt" data-q="${id}" data-i="${i}">${o}</button>`).join('')}
+    <div class="fb"></div></div>`;
+}
+function flow(a, topic, b){
+  return `<div class="flow pop"><div class="node">${a}</div>
+    <div class="track"><span class="dot"></span><span class="dot d2"></span></div>
+    <div class="node topic">${topic}</div>
+    <div class="track"><span class="dot"></span><span class="dot d2"></span></div>
+    <div class="node me">${b}</div></div>`;
+}
+function chips(id, parts){   // parts: [[text, explanation], ...]
+  return `<div class="cmd" data-chips="${id}">${parts.map((p,i)=>
+    `<button data-c="${i}" data-exp="${attr(p[1])}">${esc(p[0])}</button>`).join('')}</div>
+    <div class="card explain" id="ex-${id}"><span class="muted">👆 Tap each piece of the command.</span></div>`;
+}
+/* simple Python colouring: one pass with a tokenizer, so tags never get re-coloured */
+const PYRE = /('[^']*'|#.*$|\b(?:import|from|class|def|return|if|else|try|except|finally|pass|for|in|self|None|True|False)\b|\b\d+(?:\.\d+)?\b)/g;
+function hlLine(l){
+  let out='', last=0;
+  for(const m of l.matchAll(PYRE)){
+    const t=m[0]; out+=esc(l.slice(last,m.index));
+    const cls = t[0]==='#'?'cm': t[0]==="'"?'st': /^\d/.test(t)?'nu':'kw';
+    out+=`<span class="${cls}">${esc(t)}</span>`; last=m.index+t.length;
+  }
+  return out+esc(l.slice(last));
+}
+function py(src, cls=''){
+  const lines = src.split('\n').map(l=>`<span class="ln">${hlLine(l) || ' '}</span>`);
+  return `<pre class="code ${cls}">${lines.join('')}</pre>`;
+}
+
+/* =========================================================
+   The lesson itself. One object = one step.
+   m = module index, t = title, h = html, go = function run when the step opens
+   ========================================================= */
+const MODS = [
+  ['🚀','Start'], ['⌨️','The terminal'], ['💡','The ROS idea'], ['📁','The workspace'],
+  ['📦','Packages'], ['🔌','The Studica driver'], ['🔍','Explore topics'], ['🐍','Code the sonar'], ['🏁','Finish']
+];
+
+const SONAR_CODE =
+`import rclpy
+from rclpy.node import Node
+from rclpy.signals import SignalHandlerOptions
+from sensor_msgs.msg import Range
+from std_msgs.msg import Float64
+
+
+class SonarMotor(Node):
+    def __init__(self):
+        super().__init__('sonar_motor')
+        self.create_subscription(Range, '/front_sonar/range', self.on_range, 10)
+        self.pub = self.create_publisher(Float64, '/drive/m_0/cmd', 10)
+
+    def on_range(self, msg):
+        if 0.0 < msg.range < 0.20:
+            speed = 0.0
+        else:
+            speed = 0.3
+        self.pub.publish(Float64(data=speed))
+        self.get_logger().info(f'{msg.range:.2f} m -> motor {speed}')
+
+
+def main():
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    node = SonarMotor()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.pub.publish(Float64(data=0.0))
+        node.destroy_node()
+        rclpy.shutdown()`;
+
+const S = [
+/* ---------------- 0. START ---------------- */
+{m:0,t:'Welcome',h:`
+<div class="robot">🤖</div>
+<h1>Make a robot react to the world</h1>
+<p>By the end, you will write a program where:</p>
+<div class="card pop">✋ a hand comes close to the <b>sonar</b> → the <b>motor stops</b></div>
+<p class="muted">We go <b>very slowly</b>. One small idea per screen.</p>
+<div class="tip">👉 <b>Swipe left</b> or tap <b>Next</b> to move on. Quick checks must be answered to continue.</div>`},
+
+{m:0,t:'The journey',h:`
+<h1>Your journey</h1>
+<div class="card pop">⌨️ <b>Terminal</b>: talk to the robot's computer</div>
+<div class="card pop">💡 <b>ROS idea</b>: how robot programs talk</div>
+<div class="card pop">📁 <b>Workspace & 📦 packages</b>: where code lives</div>
+<div class="card pop">🔌 <b>Driver</b>: switch on the sonar & motor</div>
+<div class="card pop">🐍 <b>Code</b>: sonar → motor</div>`},
+
+/* ---------------- 1. TERMINAL ---------------- */
+{m:1,t:'What is a terminal?',h:`
+<h1>What is a terminal?</h1>
+<p>A window where you <b>type a command</b> and the computer <b>answers</b>.</p>
+<p>Command = <b>cause</b>. Answer = <b>effect</b>.</p>
+${term([{c:'whoami'},{o:'vmx'}])}
+<div class="tip">The robot's computer is called the <b>VMX</b>. Its user name is <code>vmx</code>.</div>`},
+
+{m:1,t:'Reading the prompt',h:`
+<h1>Read the prompt</h1>
+<p>Before every command you see this line:</p>
+<div class="card mono" style="font-size:1.05rem;text-align:center">
+<span class="part p1">vmx</span>@<span class="part p2">vmx</span>:<span class="part p3">~</span>$</div>
+<table>
+<tr><td><span class="part p1">vmx</span></td><td>who you are (the user)</td></tr>
+<tr><td><span class="part p2">vmx</span></td><td>which computer</td></tr>
+<tr><td><span class="part p3">~</span></td><td><b>where you are now</b> (your home folder)</td></tr>
+<tr><td><b>$</b></td><td>"ready, type something"</td></tr></table>`},
+
+{m:1,t:'pwd',h:`
+<h1><code>pwd</code>: where am I?</h1>
+<p><b>p</b>rint <b>w</b>orking <b>d</b>irectory. It shows the folder you are standing in.</p>
+${term([{c:'pwd'},{o:'/home/vmx'}])}
+<div class="tip good">🏠 <code>~</code> is a short way to write <code>/home/vmx</code>.</div>`},
+
+{m:1,t:'ls',h:`
+<h1><code>ls</code>: what's in here?</h1>
+<p><b>l</b>i<b>s</b>t. It shows the folders and files where you are.</p>
+${term([{c:'ls'},{o:'Desktop  Documents  studica_ws'}])}
+<p><code>studica_ws</code> is our robot's <b>workspace</b>. We'll open it next.</p>`},
+
+{m:1,t:'cd',h:`
+<h1><code>cd</code>: walk into a folder</h1>
+<p><b>c</b>hange <b>d</b>irectory. Watch the prompt change.</p>
+${term([{c:'cd studica_ws'},{p:'~/studica_ws'},{c:'pwd'},{o:'/home/vmx/studica_ws'},{c:'cd ..'},{p:'~'},{c:'pwd'},{o:'/home/vmx'}])}
+<div class="tip"><code>..</code> means "go <b>up</b> one folder".</div>`},
+
+{m:1,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('You are in <code>/home/vmx/studica_ws</code>. You type <code>cd ..</code>. Where are you now?',
+  ['<code>/home/vmx</code>','<code>/home</code>','<code>/home/vmx/studica_ws/src</code>','Nothing changes'],0,
+  '<code>..</code> goes up <b>one</b> level: from <code>studica_ws</code> back to <code>/home/vmx</code>.',
+  'Hint: <code>..</code> = one step up.')}`},
+
+{m:1,t:'Two super keys',h:`
+<h1>Two keys that save you</h1>
+<div class="card pop"><b>⇥ Tab</b>: finishes long names for you. Fewer typos!</div>
+${term([{c:'cd stu⇥'},{o:'(Tab pressed → completes to)'},{c:'cd studica_ws/'}])}
+<div class="card pop"><b>Ctrl + C</b>: stops a program that is running.</div>
+<div class="tip warn">Copy/paste in the terminal is <b>Ctrl+Shift+C / Ctrl+Shift+V</b>, because Ctrl+C means "stop".</div>`},
+
+{m:1,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('You want to paste a command into the terminal. Which keys?',
+  ['Ctrl + V','Ctrl + Shift + V','Ctrl + C','Tab'],1,
+  'In a terminal, <b>Ctrl+C</b> means "stop program", so copy/paste use <b>Ctrl+Shift</b>.',
+  'Hint: Ctrl+C already has another job in the terminal.')}`},
+
+/* ---------------- 2. ROS IDEA ---------------- */
+{m:2,t:'Many small programs',h:`
+<h1>A robot program is many small programs</h1>
+<p>Each small program does <b>one job</b>. In ROS 2 we call it a <b>node</b>.</p>
+<div class="card pop">📡 <b>Sonar node</b>: measures distance</div>
+<div class="card pop">🧠 <b>Your node</b>: decides "stop or go"</div>
+<div class="card pop">⚙️ <b>Motor node</b>: spins the wheel</div>
+<p class="muted">ROS 2 = <b>R</b>obot <b>O</b>perating <b>S</b>ystem, version 2.</p>`},
+
+{m:2,t:'Topics',h:`
+<h1>Nodes talk through <b>topics</b></h1>
+<p>A topic is like a <b>WhatsApp group chat</b> with a name.</p>
+${flow('📡 Sonar<small>node</small>','/front_sonar/range','🧠 Yours<small>node</small>')}
+<p>The sonar keeps posting distances into the group. Your node reads them.</p>`},
+
+{m:2,t:'Publish & subscribe',h:`
+<h1>Publish & subscribe</h1>
+<div class="card pop">📤 <b>Publish</b> = <b>send</b> a message into the topic<br><span class="muted">(posting in the group chat)</span></div>
+<div class="card pop">📥 <b>Subscribe</b> = <b>listen</b> to a topic<br><span class="muted">(joining the group chat)</span></div>
+${flow('📡 publishes','/front_sonar/range','🧠 subscribes')}`},
+
+{m:2,t:'Many listeners',h:`
+<h1>One topic, many listeners</h1>
+<p>Anyone can join the group chat. Each listener gets <b>every</b> message.</p>
+<div class="flow pop"><div class="node">📡 Sonar</div>
+<div class="track"><span class="dot"></span><span class="dot d2"></span></div>
+<div class="fan">
+ <div class="row"><div class="track"><span class="dot"></span></div><div class="node me">🧠 Brain</div></div>
+ <div class="row"><div class="track"><span class="dot d2"></span></div><div class="node me">📝 Logger</div></div>
+</div></div>
+<div class="tip good">The sonar doesn't even know who is listening. That's why we can add nodes freely.</div>`},
+
+{m:2,t:'Message types',h:`
+<h1>Messages have a fixed shape</h1>
+<p>Like a <b>form with fixed boxes</b>. Sender and receiver must use the <b>same form</b>.</p>
+<div class="card mono pop" style="font-size:.85rem">📄 <b>sensor_msgs/Range</b><br>
+&nbsp;range: <span style="color:var(--yellow)">0.35</span> <span class="muted">← distance in metres</span><br>
+&nbsp;min_range: 0.02<br>&nbsp;max_range: 4.0</div>
+<div class="card mono pop" style="font-size:.85rem">📄 <b>std_msgs/Float64</b><br>
+&nbsp;data: <span style="color:var(--yellow)">0.3</span> <span class="muted">← one number (motor speed)</span></div>`},
+
+{m:2,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('A new <b>logger</b> node wants to save every distance reading. What must it do?',
+  ['Publish to <code>/front_sonar/range</code>','Subscribe to <code>/front_sonar/range</code>','Edit the sonar node','Restart the robot'],1,
+  'Listening = <b>subscribing</b>. The sonar node does not change at all.',
+  'Hint: is the logger sending or listening?')}`},
+
+{m:2,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('The sonar node and your node have never "met". What must they agree on to talk?',
+  ['Same file name','The topic name and the message type','Same programming language','Same computer screen'],1,
+  'Only two things: the <b>topic name</b> (which group chat) and the <b>message type</b> (which form).',
+  'Hint: think "which group chat" and "which form".')}`},
+
+/* ---------------- 3. WORKSPACE ---------------- */
+{m:3,t:'The workspace',h:`
+<h1>The workspace = your robot project folder</h1>
+<p>Ours is <code>~/studica_ws</code>. At first it has just one important folder:</p>
+<div class="tree"><div>📁 studica_ws/</div><div>&nbsp;&nbsp;└─ 📁 <b>src/</b> <span class="note">← all the code (YOU work here)</span></div></div>
+<p><b>src</b> = <b>s</b>ou<b>rc</b>e code.</p>`},
+
+{m:3,t:'colcon build',h:`
+<h1>Cause → effect: <code>colcon build</code></h1>
+<p><code>colcon</code> is the <b>build tool</b>. Tap the button and watch what appears.</p>
+<div class="tree" id="wsTree">
+<div>📁 studica_ws/</div>
+<div>&nbsp;&nbsp;├─ 📁 src/ <span class="note">your code</span></div>
+<div class="b hidden new">&nbsp;&nbsp;├─ 📁 build/ <span class="note">scratch work, ignore</span></div>
+<div class="b hidden new">&nbsp;&nbsp;├─ 📁 install/ <span class="note">⭐ finished programs</span></div>
+<div class="b hidden new">&nbsp;&nbsp;└─ 📁 log/ <span class="note">notes if something fails</span></div>
+</div>
+<p style="text-align:center;margin-top:12px"><button class="btn" id="buildBtn">▶ cd ~/studica_ws && colcon build</button></p>`,
+go(sl){
+  const b = sl.querySelector('#buildBtn'), rows = sl.querySelectorAll('#wsTree .b');
+  rows.forEach(r=>r.classList.add('hidden')); b.textContent='▶ cd ~/studica_ws && colcon build';
+  b.onclick=()=>{ b.textContent='Building…';
+    rows.forEach((r,i)=>setTimeout(()=>{r.classList.remove('hidden')}, 500+i*450));
+    setTimeout(()=>b.textContent='✅ Built! (tap to reset)',1900);
+    b.onclick=()=>S[cur].go(sl); };
+}},
+
+{m:3,t:'Kitchen analogy',h:`
+<h1>Think of a kitchen 🍳</h1>
+<div class="card pop">📖 <b>src/</b> = the recipe book</div>
+<div class="card pop">🔥 <b>colcon build</b> = cooking</div>
+<div class="card pop">🍱 <b>install/</b> = the finished dishes</div>
+<div class="card pop">🍽️ <b>source</b> = putting dishes on the table so you can eat</div>
+<p class="muted">Next: what does <code>source</code> actually do?</p>`},
+
+{m:3,t:'source',h:`
+<h1><code>source</code>: tell the terminal</h1>
+<p>A terminal doesn't know about your new programs until you <b>source</b>. Watch:</p>
+${term([{c:'ros2 run auto_wander sonar_motor'},{e:"Package 'auto_wander' not found"},
+        {c:'source install/local_setup.bash'},
+        {c:'ros2 run auto_wander sonar_motor'},{o:'[sonar_motor]: 0.45 m -> motor 0.3'}],'~/studica_ws')}
+<div class="tip">Do it <b>once per terminal</b>, after each build.</div>`},
+
+{m:3,t:'Golden rule',h:`
+<h1>Golden rule: build from the top</h1>
+<p>Always build from <code>~/studica_ws</code>, <b>never</b> from inside <code>src/</code>.</p>
+<div class="tree"><div class="bad">❌ cd ~/studica_ws/src && colcon build</div>
+<div>📁 src/</div><div class="bad">&nbsp;&nbsp;├─ 📁 build/ 😱</div><div class="bad">&nbsp;&nbsp;├─ 📁 install/ 😱</div><div class="bad">&nbsp;&nbsp;└─ 📁 log/ 😱 <span class="note">wrong place!</span></div></div>
+<div class="tree" style="margin-top:10px"><div style="color:var(--accent)">✅ cd ~/studica_ws && colcon build</div></div>`},
+
+{m:3,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('You edit a Python file in <code>src/</code> but <b>forget</b> to build. You run the program. Which version runs?',
+  ['The new one','The old one','Neither; it crashes','Both'],1,
+  '<code>ros2 run</code> uses what is in <code>install/</code>, the <b>old</b> dish. You must cook again (build).',
+  'Hint: where does <code>ros2 run</code> take programs from?')}`},
+
+{m:3,t:'symlink-install',h:`
+<h1>A shortcut: <code>--symlink-install</code></h1>
+<p>Instead of <b>copying</b> your Python files into <code>install/</code>, it puts a <b>link</b> 🔗 pointing back to <code>src/</code>.</p>
+<div class="tree"><div>install/…/sonar_motor.py <span style="color:var(--accent)">🔗 →</span> src/…/sonar_motor.py</div></div>
+<table style="margin-top:12px"><tr><th>You changed…</th><th>Rebuild?</th></tr>
+<tr><td>code inside an existing <code>.py</code></td><td>✅ No</td></tr>
+<tr><td><code>setup.py</code> (new program name)</td><td>🔁 Yes</td></tr>
+<tr><td><code>package.xml</code></td><td>🔁 Yes</td></tr>
+<tr><td>added a new file</td><td>🔁 Yes</td></tr></table>`},
+
+{m:3,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('You built with <code>--symlink-install</code>. Then you added a new line in <code>setup.py</code>. Rebuild?',
+  ['No, the link handles it','Yes, setup.py is only read during the build'],1,
+  'The link only covers your <b>.py code files</b>. <code>setup.py</code> is read <b>only</b> by <code>colcon build</code>.',
+  'Hint: look at the table on the last screen.')}`},
+
+/* ---------------- 4. PACKAGES ---------------- */
+{m:4,t:'What is a package?',h:`
+<h1>A package = a labelled box of code</h1>
+<p>Inside <code>src/</code> each folder is one <b>package</b>.</p>
+<div class="tree"><div>📁 src/</div>
+<div>&nbsp;&nbsp;├─ 📦 studica_control/ <span class="note">Studica's driver: <b>don't touch</b></span></div>
+<div class="hl">&nbsp;&nbsp;└─ 📦 auto_wander/ <span class="note">yours ✨</span></div></div>
+<div class="tip">Keep your code in <b>your own</b> package. Then Studica updates never erase your work.</div>`},
+
+{m:4,t:'Create a package',h:`
+<h1>Create your package</h1>
+<p>Run this <b>inside</b> <code>~/studica_ws/src</code>:</p>
+${chips('pkg',[
+ ['ros2','The ROS 2 tool.'],
+ ['pkg create','"Make me a new package" (it writes starter files for you).'],
+ ['--build-type ament_python','A <b>Python</b> package (it gets setup.py, no C++ files).'],
+ ['auto_wander','The package name. You choose it, so spell it carefully!'],
+ ['--dependencies','"My code will use these libraries:"'],
+ ['rclpy','The ROS 2 library for Python.'],
+ ['sensor_msgs','Sensor message forms, like <code>Range</code> (sonar).'],
+ ['std_msgs','Simple forms, like <code>Float64</code> (motor speed).']
+])}`},
+
+{m:4,t:'What it made',h:`
+<h1>What it made</h1>
+<div class="tree">
+<div>📦 auto_wander/ <span class="note">← the package (outer)</span></div>
+<div>&nbsp;&nbsp;├─ 📄 package.xml <span class="note">ID card</span></div>
+<div>&nbsp;&nbsp;├─ 📄 setup.py <span class="note">list of runnable programs</span></div>
+<div>&nbsp;&nbsp;├─ 📁 resource/ test/ <span class="note">ignore for now</span></div>
+<div class="hl">&nbsp;&nbsp;└─ 📁 auto_wander/ <span class="note">← YOUR .py FILES GO HERE</span></div>
+</div>
+<div class="tip warn">Two folders with the same name confuses everyone at first. <b>Outer</b> = package, <b>inner</b> = your Python code.</div>`},
+
+{m:4,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('Where do you save <code>sonar_motor.py</code>?',
+  ['<code>~/studica_ws/src/auto_wander/</code>','<code>~/studica_ws/src/auto_wander/auto_wander/</code>','<code>~/studica_ws/install/</code>','<code>~/studica_ws/</code>'],1,
+  'The <b>inner</b> folder holds your Python code.',
+  'Hint: there are two <code>auto_wander</code> folders. Which one is for code?')}`},
+
+{m:4,t:'package.xml',h:`
+<h1><code>package.xml</code>: the ID card</h1>
+<p>Rule: every library you <b>import</b> needs a <b>depend</b> line.</p>
+<table><tr><th>In your Python code</th><th>In package.xml</th></tr>
+<tr class="pop"><td><code>import rclpy</code></td><td><code>&lt;depend&gt;rclpy&lt;/depend&gt;</code></td></tr>
+<tr class="pop"><td><code>from sensor_msgs.msg …</code></td><td><code>&lt;depend&gt;sensor_msgs&lt;/depend&gt;</code></td></tr>
+<tr class="pop"><td><code>from std_msgs.msg …</code></td><td><code>&lt;depend&gt;std_msgs&lt;/depend&gt;</code></td></tr></table>
+<p class="muted" style="margin-top:10px">The <code>--dependencies</code> in pkg create wrote these for you.</p>`},
+
+{m:4,t:'setup.py',h:`
+<h1><code>setup.py</code>: name your program</h1>
+<p>Add one line so <code>ros2 run</code> can find your program:</p>
+<div class="card mono" style="font-size:.85rem">'<span class="part p1">sonar_motor</span> = <span class="part p2">auto_wander.sonar_motor</span>:<span class="part p3">main</span>',</div>
+<table><tr><td><span class="part p1">sonar_motor</span></td><td>the <b>command name</b> you type</td></tr>
+<tr><td><span class="part p2">auto_wander.sonar_motor</span></td><td>the <b>file</b>: auto_wander/sonar_motor.py</td></tr>
+<tr><td><span class="part p3">main</span></td><td>the <b>function</b> to start</td></tr></table>
+<p style="margin-top:10px">Then you can run: <code>ros2 run auto_wander sonar_motor</code></p>`},
+
+{m:4,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('<code>ros2 run auto_wander sonar_motor</code> says <b>"No executable found"</b>. Most likely cause?',
+  ['The sonar is unplugged','Missing line in setup.py, or you didn\'t build/source','The battery is low','The YAML has a typo'],1,
+  'ROS can\'t even <b>find</b> the program, so it\'s a setup.py / build / source problem, not hardware.',
+  'Hint: the program didn\'t even start. Hardware isn\'t the issue yet.')}`},
+
+/* ---------------- 5. DRIVER ---------------- */
+{m:5,t:'Layers',h:`
+<h1>From sensor to your code</h1>
+<p>Studica gives you the bottom layers. You only write the top one.</p>
+<div class="stack">
+ <div class="layer" style="background:#3a2a1a">🔊 Real sonar<small>the hardware</small></div>
+ <div class="layer" style="background:#2a2f3a">VMX HAL<small>comes with the robot</small></div>
+ <div class="layer" style="background:#22344a">drivers/ultrasonic.cpp<small>"ping, time the echo"</small></div>
+ <div class="layer" style="background:#1f3d4a">ultrasonic node<small>publishes /front_sonar/range</small></div>
+ <div class="layer" style="background:#1d4a38">🧠 YOUR node<small>this is your job</small></div>
+</div>`},
+
+{m:5,t:'Switch hardware on',h:`
+<h1>A YAML file switches hardware on</h1>
+<p>Nothing starts unless <b>you</b> enable it. File: <code>auto_wander/config/simple.yaml</code></p>
+<pre class="code yaml-l">control_server:
+  ros__parameters:
+    titan:                     <span class="cm"># motor controller</span>
+      enabled: <span class="st">true</span>
+      sensors: ["drive"]
+      drive:
+        can_id: <span class="nu">42</span>
+        motor_freq: <span class="nu">15600</span>
+        m_0: {encoder_mode: "quadrature", dist_per_tick: 1.0}
+    ultrasonic:                <span class="cm"># sonar</span>
+      enabled: <span class="st">true</span>
+      sensors: ["front_sonar"]
+      front_sonar: {ping: <span class="nu">8</span>, echo: <span class="nu">9</span>, frame_id: "front_sonar_link"}</pre>
+<p class="muted">ping 8 / echo 9 = the VMX ports the sonar wires plug into.</p>`},
+
+{m:5,t:'Label → topic',h:`
+<h1>Cause → effect: the label names the topic</h1>
+<p>You <b>invent</b> the label. Type one and watch the topic name change:</p>
+<input class="lbl noswipe" id="lbl" value="front_sonar" autocomplete="off" spellcheck="false">
+<div class="card" style="text-align:center;margin-top:12px">
+<div class="muted" style="font-size:.8rem">Your topic will be</div>
+<div class="mono" id="lblOut" style="font-size:1.2rem;color:var(--yellow)">/front_sonar/range</div></div>
+<div class="tip"><code>/range</code> is always added by the driver. Only the label part is yours.</div>`,
+go(sl){ const i=sl.querySelector('#lbl'), o=sl.querySelector('#lblOut');
+  const upd=()=>{ const v=(i.value||'').trim().replace(/[^A-Za-z0-9_]/g,''); o.textContent='/'+(v||'???')+'/range';
+    o.animate([{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:200}); };
+  i.oninput=upd; upd(); }},
+
+{m:5,t:'YAML spacing',h:`
+<h1>YAML spacing matters</h1>
+<div class="card pop">1️⃣ Use <b>spaces</b>, never Tab.</div>
+<div class="card pop">2️⃣ Things at the <b>same level</b> line up <b>exactly</b>.</div>
+<div class="card pop">3️⃣ A space after every colon: <code>can_id: 42</code></div>
+<pre class="code yaml-l">    titan:        <span class="cm"># level 2</span>
+      enabled: true   <span class="cm"># inside titan</span>
+    ultrasonic:   <span class="cm"># level 2, lines up with titan</span></pre>`},
+
+{m:5,t:'Quick check',h:`
+<h1>Spot the mistake</h1>
+${quiz('Which YAML will make the sonar <b>never start</b>?',
+  ['<code>    titan:\n      enabled: true\n    ultrasonic:\n      enabled: true</code>',
+   '<code>    titan:\n      enabled: true\n      ultrasonic:\n        enabled: true</code>'],1,
+  '<code>ultrasonic</code> is indented <b>under</b> <code>titan</code>, so YAML thinks it is a titan setting. No error appears. The sonar just never starts!',
+  'Hint: does <code>ultrasonic:</code> line up with <code>titan:</code>?')}`},
+
+{m:5,t:'Launch the driver',h:`
+<h1>Start the driver</h1>
+${chips('launch',[
+ ['ros2 launch','Start a <b>launch file</b>: a script that starts nodes with settings.'],
+ ['studica_control','Which package the launch file is in.'],
+ ['studica_launch.py','The launch file name. Tip: type <code>studica_</code> then <b>Tab</b>.'],
+ ['params_file:=$HOME/studica_ws/src/auto_wander/config/simple.yaml','Use <b>our</b> YAML (with our sonar + motor) instead of Studica\'s default.']
+])}
+${term([{c:'ros2 launch studica_control studica_launch.py params_file:=…/simple.yaml'},{o:'[control_server] Titan "drive" ready\n[control_server] Ultrasonic "front_sonar" ready'}],'~/studica_ws')}`},
+
+{m:5,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('You see: <b>"file \'studica_control.py\' was not found"</b>. Fix?',
+  ['Reinstall ROS','The launch file is <code>studica_launch.py</code>. Fix the typo','Delete the YAML','Unplug the sonar'],1,
+  'The package is <code>studica_control</code>, but the <b>file</b> is <code>studica_launch.py</code>. Use <b>Tab</b> to avoid typos.',
+  'Hint: read the file name in the error carefully.')}`},
+
+/* ---------------- 6. EXPLORE ---------------- */
+{m:6,t:'topic list',h:`
+<h1>See all topics</h1>
+<p>Keep the driver running. Open a <b>second</b> terminal:</p>
+${term([{c:'ros2 topic list'},{o:'/drive/m_0/cmd\n/drive/m_0/encoder\n/front_sonar/range\n/parameter_events\n/rosout'}])}
+<div class="tip good">Our two stars: <code>/front_sonar/range</code> (sonar → out) and <code>/drive/m_0/cmd</code> (in → motor).</div>`},
+
+{m:6,t:'topic echo',h:`
+<h1>Cause → effect: <code>ros2 topic echo</code></h1>
+<p>Prints every message on a topic. Tap the hand to move it closer!</p>
+<div class="term"><div class="tb"><i></i><i></i><i></i></div>
+<pre class="stream noswipe" id="stream"></pre></div>
+<p style="text-align:center"><button class="btn" id="waveBtn">✋ Move hand in front</button></p>`,
+go(sl){
+  const st=sl.querySelector('#stream'), btn=sl.querySelector('#waveBtn'); st.innerHTML='';
+  let near=false; btn.textContent='✋ Move hand in front';
+  btn.onclick=()=>{ near=!near; btn.textContent = near?'👋 Take hand away':'✋ Move hand in front'; };
+  const line=t=>{ const d=document.createElement('div'); d.textContent=t; st.appendChild(d); while(st.children.length>12) st.removeChild(st.firstChild); };
+  line('$ ros2 topic echo /front_sonar/range');
+  clearInterval(window._echo);
+  window._echo=setInterval(()=>{ if(!document.body.contains(st)) return clearInterval(window._echo);
+    const v = near ? (0.08+Math.random()*0.05) : (1.2+Math.random()*0.2);
+    line('range: '+v.toFixed(2)); line('---'); },700);
+}},
+
+{m:6,t:'topic pub',h:`
+<h1>Fake a sensor with <code>ros2 topic pub</code></h1>
+<p>No robot? Pretend to be the sonar. Your code can't tell the difference!</p>
+${term([{c:'ros2 topic pub /front_sonar/range sensor_msgs/msg/Range "{range: 0.15}" -r 2'},{o:'publishing #1: range=0.15\npublishing #2: range=0.15\n…'}])}
+<table><tr><td><code>/front_sonar/range</code></td><td>which topic</td></tr>
+<tr><td><code>sensor_msgs/msg/Range</code></td><td>which form</td></tr>
+<tr><td><code>"{range: 0.15}"</code></td><td>what to write in it</td></tr>
+<tr><td><code>-r 2</code></td><td>2 times per second</td></tr></table>`},
+
+{m:6,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('<code>ros2 topic echo /front_sonar/range</code> always shows <code>range: inf</code>, even with your hand close. Likely cause?',
+  ['ROS is broken','ping and echo wires/numbers are swapped or on the wrong ports','The motor is off','You forgot to source'],1,
+  '<code>inf</code> = "no echo heard". The topic exists, so ROS works. Check the sonar wiring and the ping/echo numbers in the YAML.',
+  'Hint: the topic exists and prints. So what part can\'t "hear"?')}`},
+
+/* ---------------- 7. CODE ---------------- */
+{m:7,t:'4 blocks',h:`
+<h1>Every node = 4 blocks</h1>
+<div class="card pop" style="border-color:#4fb3ff">1️⃣ <b>Imports</b>: bring in the tools</div>
+<div class="card pop" style="border-color:#3ddc97">2️⃣ <b>Setup</b>: subscribe & publish (runs once)</div>
+<div class="card pop" style="border-color:#ffe066">3️⃣ <b>Callback</b>: your logic (runs on every message)</div>
+<div class="card pop" style="border-color:#ff7ad9">4️⃣ <b>Main</b>: start & stop (same every time)</div>
+<div class="tip good">Blocks 1, 2 & 4 are almost the same in every node. You mostly think about block 3!</div>`},
+
+{m:7,t:'Block 1',h:`
+<h1>1️⃣ Imports</h1>
+${py(`import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Range
+from std_msgs.msg import Float64`)}
+<table><tr><td><code>rclpy</code></td><td>ROS 2 for Python</td></tr>
+<tr><td><code>Node</code></td><td>blank node template</td></tr>
+<tr><td><code>Range</code></td><td>the sonar form 📄</td></tr>
+<tr><td><code>Float64</code></td><td>the motor form 📄</td></tr></table>`},
+
+{m:7,t:'Block 2',h:`
+<h1>2️⃣ Setup (runs once)</h1>
+${py(`class SonarMotor(Node):
+    def __init__(self):
+        super().__init__('sonar_motor')
+        self.create_subscription(Range, '/front_sonar/range', self.on_range, 10)
+        self.pub = self.create_publisher(Float64, '/drive/m_0/cmd', 10)`,'b2')}
+<p style="text-align:center"><button class="btn sm ghost" id="stepLine">Explain next line ▶</button></p>
+<div class="card" id="lineEx" style="min-height:70px"><span class="muted">Tap the button to walk through the lines.</span></div>`,
+go(sl){
+  const lines=sl.querySelectorAll('.b2 .ln'), ex=sl.querySelector('#lineEx'), b=sl.querySelector('#stepLine');
+  const notes=[[0,'"I am making a node called SonarMotor." It is built from the blank <code>Node</code> template.'],
+   [2,'Register on the ROS network with the name <code>sonar_motor</code>. ⚠️ Forget this line and the node crashes!'],
+   [3,'📥 <b>Subscribe</b>: when a <code>Range</code> arrives on <code>/front_sonar/range</code>, call <code>on_range</code>.'],
+   [4,'📤 <b>Publisher</b>: a way to send <code>Float64</code> to <code>/drive/m_0/cmd</code> (motor 0). Saved as <code>self.pub</code>.']];
+  let k=-1; lines.forEach(l=>l.classList.remove('lit')); ex.innerHTML='<span class="muted">Tap the button to walk through the lines.</span>';
+  b.textContent='Explain next line ▶';
+  b.onclick=()=>{ k=(k+1)%notes.length; lines.forEach(l=>l.classList.remove('lit'));
+    lines[notes[k][0]].classList.add('lit'); ex.innerHTML=notes[k][1];
+    ex.animate([{opacity:0},{opacity:1}],{duration:300});
+    b.textContent = k===notes.length-1 ? 'Start again ↺' : 'Explain next line ▶'; };
+}},
+
+{m:7,t:'Block 3',h:`
+<h1>3️⃣ The callback</h1>
+${py(`    def on_range(self, msg):
+        if 0.0 < msg.range < 0.20:
+            speed = 0.0          # too close: stop
+        else:
+            speed = 0.3          # clear: go 30%
+        self.pub.publish(Float64(data=speed))`)}
+<div class="tip">You <b>never</b> call <code>on_range</code> yourself. <b>ROS calls it</b> every time a sonar message arrives.</div>
+<div class="tip warn"><code>0.0 &lt;</code> ignores bad readings of 0 (no echo).</div>`},
+
+{m:7,t:'Block 4',h:`
+<h1>4️⃣ Main: start & stop</h1>
+${py(`def main():
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    node = SonarMotor()
+    try:
+        rclpy.spin(node)          # wait for messages forever
+    except KeyboardInterrupt:     # Ctrl+C pressed
+        pass
+    finally:
+        node.pub.publish(Float64(data=0.0))   # STOP the motor
+        node.destroy_node()
+        rclpy.shutdown()`)}
+<p class="muted">Copy this block as-is. We explain the Ctrl+C part soon.</p>`},
+
+{m:7,t:'Try it!',h:`
+<h1>Cause → effect: try the logic</h1>
+<p>Drag the hand. Watch which line runs and what the motor does.</p>
+<div class="sim noswipe">
+ <div class="simrow"><div class="hand" id="hand">✋</div><div style="font-size:2rem">📡</div><div class="wheel" id="wheel"></div></div>
+ <div class="reading" id="rd">msg.range = 0.50 m</div>
+ <input type="range" id="dist" min="2" max="100" value="50" aria-label="hand distance in cm">
+ <div class="muted" style="text-align:center;font-size:.8rem">← closer · hand distance · further →</div>
+ ${py(`if 0.0 < msg.range < 0.20:
+    speed = 0.0
+else:
+    speed = 0.3`,'simcode')}
+ <div class="reading" id="mt">publish → /drive/m_0/cmd  data: 0.3</div>
+</div>`,
+go(sl){
+  const d=sl.querySelector('#dist'), rd=sl.querySelector('#rd'), w=sl.querySelector('#wheel'),
+        h=sl.querySelector('#hand'), mt=sl.querySelector('#mt'), L=sl.querySelectorAll('.simcode .ln');
+  const upd=()=>{ const m=d.value/100, close=m<0.20;
+    rd.textContent='msg.range = '+m.toFixed(2)+' m';
+    h.style.transform='translateX('+(-(d.value-50)*0.6)+'px)';
+    L.forEach(l=>l.classList.remove('lit'));
+    (close?[L[0],L[1]]:[L[2],L[3]]).forEach(l=>l.classList.add('lit'));
+    w.classList.toggle('stop',close);
+    mt.textContent='publish → /drive/m_0/cmd  data: '+(close?'0.0  🛑':'0.3  ✅'); };
+  d.oninput=upd; upd();
+}},
+
+{m:7,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('You want the motor to stop when the hand is closer than <b>30 cm</b>. Which line?',
+  ['<code>if 0.0 &lt; msg.range &lt; 30:</code>','<code>if 0.0 &lt; msg.range &lt; 0.30:</code>','<code>if msg.range &gt; 0.30:</code>','<code>speed = 0.30</code>'],1,
+  'Distances are in <b>metres</b>: 30 cm = <b>0.30</b> m.',
+  'Hint: what unit is <code>msg.range</code> in?')}`},
+
+{m:7,t:'Ctrl+C gotcha',h:`
+<h1>⚠️ The Ctrl+C gotcha</h1>
+<p>The driver keeps repeating the <b>last</b> speed it got, 50 times a second.</p>
+<div class="card mono pop" style="text-align:center">last message: <span style="color:var(--yellow)">data: 0.3</span><br>
+<span class="muted">🔁 0.3 … 0.3 … 0.3 …</span></div>
+<p>If your node quits without sending <b>0</b>, the motor <b>keeps spinning</b>!</p>
+<div class="tip good">That's why block 4 sends <code>Float64(data=0.0)</code> in <code>finally:</code>, the last thing before quitting.</div>`},
+
+{m:7,t:'Quick check',h:`
+<h1>Quick check</h1>
+${quiz('Your node <b>crashed</b> while the motor was spinning. What is the real emergency stop?',
+  ['Wait, it will stop by itself','Ctrl+C on the <b>driver</b> terminal, or the robot\'s power switch','Delete the Python file','Run colcon build'],1,
+  'A crashed node can\'t send 0. Stopping the <b>driver</b> (or power) always works. Wheels off the ground when testing!',
+  'Hint: the crashed node can\'t do anything any more.')}`},
+
+{m:7,t:'Full code',h:`
+<h1>The full program</h1>
+<p>Save as <code>~/studica_ws/src/auto_wander/auto_wander/sonar_motor.py</code></p>
+<p><button class="btn sm" id="copyBtn">📋 Copy code</button></p>
+${py(SONAR_CODE)}`,
+go(sl){ const b=sl.querySelector('#copyBtn'); b.textContent='📋 Copy code';
+  b.onclick=async()=>{ try{ await navigator.clipboard.writeText(SONAR_CODE); b.textContent='✅ Copied!'; }
+    catch(e){ b.textContent='Select the code & copy'; } }; }},
+
+{m:7,t:'Run it',h:`
+<h1>Run it on the robot ✅</h1>
+<p>Tick each step as you do it:</p>
+<label class="check"><input type="checkbox"><span>Add to <code>setup.py</code>:<br><code>'sonar_motor = auto_wander.sonar_motor:main',</code></span></label>
+<label class="check"><input type="checkbox"><span><b>Terminal 1</b>: start the driver with <code>simple.yaml</code></span></label>
+<label class="check"><input type="checkbox"><span><b>Terminal 2</b>: <code>cd ~/studica_ws</code><br><code>colcon build --packages-select auto_wander --symlink-install</code></span></label>
+<label class="check"><input type="checkbox"><span><code>source install/local_setup.bash</code></span></label>
+<label class="check"><input type="checkbox"><span><code>ros2 run auto_wander sonar_motor</code></span></label>
+<label class="check"><input type="checkbox"><span>✋ Hand closer than 20 cm → motor stops!</span></label>
+<div class="tip warn">🛞 Wheels <b>off the ground</b> the first time.</div>`},
+
+/* ---------------- 8. FINISH ---------------- */
+{m:8,t:'Recap',h:`
+<h1>What you learned</h1>
+<div class="card pop">⌨️ <code>pwd</code> <code>ls</code> <code>cd</code>, Tab, Ctrl+C</div>
+<div class="card pop">💡 nodes talk on <b>topics</b>: publish 📤 / subscribe 📥</div>
+<div class="card pop">📁 <code>src</code> → <code>colcon build</code> → <code>install</code> → <code>source</code></div>
+<div class="card pop">📦 package.xml, setup.py, the inner code folder</div>
+<div class="card pop">🔌 YAML switches hardware on; label → topic name</div>
+<div class="card pop">🐍 4 blocks; the callback is your logic</div>`},
+
+{m:8,t:'Done!',h:`
+<div class="robot">🏆</div>
+<h1 style="text-align:center">You did it!</h1>
+<p style="text-align:center">Your robot now <b>senses</b> and <b>reacts</b>. That's the heart of every robot.</p>
+<div class="card"><b>Next challenge 🚀</b><br>Add a <b>back sonar</b> and make the robot drive away from obstacles in any direction: the <code>auto_wander</code> project.</div>
+<p style="text-align:center"><button class="btn ghost" id="again">↺ Start again</button></p>`,
+go(sl){ confetti(); sl.querySelector('#again').onclick=()=>show(0); }}
+];
+
+/* =========================================================
+   Engine: render, navigate, quizzes, terminals
+   ========================================================= */
+const stage = document.getElementById('stage');
+const slides = S.map((s,i)=>{ const d=document.createElement('section'); d.className='slide';
+  d.setAttribute('aria-label', s.t); d.innerHTML=s.h; stage.appendChild(d); return d; });
+let passed;                        // quiz ids answered correctly (remembered on this device)
+try{ passed = new Set(JSON.parse(localStorage.getItem('ros2course-passed')||'[]')); }catch(e){ passed = new Set(); }
+let cur = 0, typing = null;
+
+function store(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+
+function needsAnswer(i){
+  const q = slides[i].querySelector('.quiz');
+  return q && !passed.has(q.dataset.qid);
+}
+function updateNav(){
+  document.getElementById('prev').disabled = cur===0;
+  const n = document.getElementById('next');
+  n.textContent = cur===S.length-1 ? 'Finish 🎉' : (needsAnswer(cur) ? 'Answer first 🔒' : 'Next →');
+  n.classList.toggle('locked', needsAnswer(cur));
+  document.getElementById('modchip').textContent = MODS[S[cur].m][0]+' '+MODS[S[cur].m][1];
+  document.getElementById('count').textContent = (cur+1)+' / '+S.length;
+  document.getElementById('prog').style.width = ((cur+1)/S.length*100)+'%';
+}
+function show(i, dir=1){
+  if(i<0||i>=S.length) return;
+  clearTimeout(typing); clearInterval(window._echo);
+  const old=slides[cur];
+  if(old!==slides[i]){ old.classList.remove('on'); old.style.transform=`translateX(${dir>0?-40:40}px)`; }
+  cur=i; const sl=slides[cur];
+  sl.style.transition='none'; sl.style.transform=`translateX(${dir>0?40:-40}px)`;
+  sl.offsetHeight;                       // apply the start position before animating
+  sl.style.transition=''; sl.style.transform=''; sl.classList.add('on');
+  sl.scrollTop=0;
+  // replay the pop-in animations every time a step opens
+  sl.querySelectorAll('.pop,.layer').forEach(e=>{ e.style.animation='none'; e.offsetHeight; e.style.animation=''; });
+  const t = sl.querySelector('.term[data-tid]'); if(t) playTerm(t.dataset.tid);
+  if(S[cur].go) S[cur].go(sl);
+  store('ros2course-step', cur); updateNav();
+  if(cur>0) document.getElementById('hint').style.opacity=0;
+}
+function next(){
+  if(needsAnswer(cur)){ const q=slides[cur].querySelector('.quiz');
+    q.animate([{transform:'translateX(-6px)'},{transform:'translateX(6px)'},{transform:'none'}],{duration:300});
+    return; }
+  if(cur===S.length-1){ confetti(); return; }
+  show(cur+1, 1);
+}
+function prev(){ show(cur-1, -1); }
+
+/* --- terminal typing animation --- */
+function playTerm(id){
+  const el=document.querySelector(`.term[data-tid="${id}"] pre`), {lines,path}=TERMS[id];
+  clearTimeout(typing); el.innerHTML='';
+  let p=path, i=0;
+  const prompt=()=>`<span class="pr">vmx@vmx</span>:<span class="pth">${esc(p)}</span>$ `;
+  const step=()=>{
+    if(i>=lines.length){ el.insertAdjacentHTML('beforeend', prompt()+'<span class="cur"></span>'); return; }
+    const L=lines[i++];
+    if(L.p){ p=L.p; return step(); }
+    if(L.c!==undefined){
+      el.insertAdjacentHTML('beforeend', prompt()); const span=document.createElement('span'); el.appendChild(span);
+      let k=0; const type=()=>{ if(k<=L.c.length){ span.textContent=L.c.slice(0,k++); typing=setTimeout(type,38); }
+        else { el.insertAdjacentHTML('beforeend','\n'); typing=setTimeout(step,350); } }; type();
+    } else {
+      el.insertAdjacentHTML('beforeend', `<span class="${L.e?'err':'out'}">${esc(L.e||L.o)}</span>\n`);
+      typing=setTimeout(step,450);
+    }
+  };
+  typing=setTimeout(step,500);
+}
+
+/* --- clicks (quizzes, chips, replay) --- */
+document.addEventListener('click',e=>{
+  const o=e.target.closest('.opt');
+  if(o){ const id=o.dataset.q, Q=QUIZ[id], box=o.closest('.quiz'), fb=box.querySelector('.fb');
+    if(passed.has(id)) return;
+    if(+o.dataset.i===Q.correct){ o.classList.add('right'); passed.add(id); store('ros2course-passed', JSON.stringify([...passed]));
+      fb.className='fb show ok'; fb.innerHTML='✅ <b>Correct!</b> '+Q.why; updateNav(); }
+    else { o.classList.remove('wrong'); void o.offsetWidth; o.classList.add('wrong');
+      fb.className='fb show no'; fb.innerHTML='❌ Not quite. '+(Q.hintWrong||'Try again!'); }
+    return; }
+  const c=e.target.closest('.cmd button');
+  if(c){ const box=c.parentElement; box.querySelectorAll('button').forEach(b=>b.classList.remove('sel'));
+    c.classList.add('sel'); const ex=document.getElementById('ex-'+box.dataset.chips);
+    ex.innerHTML='<b class="mono" style="color:var(--yellow)">'+c.innerHTML+'</b><br>'+c.dataset.exp;
+    ex.animate([{opacity:0,transform:'translateY(6px)'},{opacity:1,transform:'none'}],{duration:250}); return; }
+  const r=e.target.closest('[data-replay]'); if(r){ playTerm(r.dataset.replay); return; }
+});
+document.getElementById('next').onclick=next;
+document.getElementById('prev').onclick=prev;
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input')) return;
+  if(e.key==='ArrowRight') next(); if(e.key==='ArrowLeft') prev(); });
+
+/* --- swipe --- */
+let sx=null, sy=null;
+stage.addEventListener('touchstart',e=>{ if(e.target.closest('.noswipe,input,pre.code')){ sx=null; return; }
+  sx=e.touches[0].clientX; sy=e.touches[0].clientY; },{passive:true});
+stage.addEventListener('touchend',e=>{ if(sx===null) return;
+  const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy; sx=null;
+  if(Math.abs(dx)>60 && Math.abs(dx)>Math.abs(dy)*1.5){ dx<0 ? next() : prev(); } },{passive:true});
+
+/* --- menu --- */
+const menu=document.getElementById('menu');
+menu.innerHTML='<h1>Lessons</h1>'+MODS.map((m,i)=>`<button class="m" data-mod="${i}"><span>${m[0]}</span>${m[1]}</button>`).join('')
+  +'<p><button class="btn ghost" id="closeMenu">Close</button></p>';
+document.getElementById('menuBtn').onclick=()=>menu.classList.add('open');
+menu.addEventListener('click',e=>{
+  if(e.target.id==='closeMenu'||e.target===menu){ menu.classList.remove('open'); return; }
+  const b=e.target.closest('[data-mod]'); if(b){ menu.classList.remove('open');
+    show(S.findIndex(s=>s.m===+b.dataset.mod), 1); } });
+
+/* --- confetti --- */
+function confetti(){
+  const cols=['#3ddc97','#4fb3ff','#ffe066','#ff7ad9','#ffb547'];
+  for(let i=0;i<70;i++){ const c=document.createElement('i'); c.className='confetti';
+    c.style.left=Math.random()*100+'vw'; c.style.background=cols[i%cols.length];
+    c.style.animationDelay=Math.random()*0.8+'s'; c.style.animationDuration=(2+Math.random()*1.5)+'s';
+    document.body.appendChild(c); setTimeout(()=>c.remove(),4500); }
+}
+
+/* --- start: show already-passed quizzes as done, then resume where the student left off --- */
+passed.forEach(id=>{ const box=document.querySelector(`.quiz[data-qid="${id}"]`); if(!box) return;
+  box.querySelector(`.opt[data-i="${QUIZ[id].correct}"]`).classList.add('right');
+  const fb=box.querySelector('.fb'); fb.className='fb show ok'; fb.innerHTML='✅ <b>Correct!</b> '+QUIZ[id].why; });
+let start = +load('ros2course-step') || 0;
+for(let i=0;i<start;i++){ if(needsAnswer(i)){ start=i; break; } }   // never skip an unanswered quiz
+if(start<0||start>=S.length) start=0;
+cur=start; show(start,1);
+</script>
+</body>
+</html>
